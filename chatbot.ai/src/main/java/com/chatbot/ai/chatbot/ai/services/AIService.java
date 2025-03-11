@@ -41,7 +41,7 @@ public class AIService {
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         // Send text to Ollama to generate an embedding
-        Map<String, String> request = Map.of("model", "llama3", "prompt", text);
+        Map<String, String> request = Map.of("model", "mistral", "prompt", text);
         HttpEntity<Map<String, String>> entity = new HttpEntity<>(request, headers);
 
         ResponseEntity<Map> response = restTemplate.postForEntity(OLLAMA_EMBEDDING_URL, entity, Map.class);

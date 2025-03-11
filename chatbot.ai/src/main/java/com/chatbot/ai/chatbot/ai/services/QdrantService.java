@@ -1,5 +1,6 @@
 package com.chatbot.ai.chatbot.ai.services;
 
+import lombok.extern.log4j.Log4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -11,10 +12,12 @@ import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.http.*;
+@Log4j
 @Service
 public class QdrantService {
     private static final String QDRANT_URL = "http://localhost:6333";
@@ -28,7 +31,8 @@ public class QdrantService {
             String jsonBody = String.format("""
             {
                 "vector": %s,
-                "top": 1
+                "limit": 5,
+                 "with_payload": true
             }
             """, java.util.Arrays.toString(queryEmbedding));
 
@@ -39,7 +43,10 @@ public class QdrantService {
                     .build();
 
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            return extractResolution(response.body());
+            System.out.printf("Qdrant response: %s%n", response.body());
+            String solution = extractResolution(response.body());
+            System.out.printf("Resolution: %s%n", solution);
+            return solution;
         } catch (Exception e) {
             e.printStackTrace();
             return "Error searching issue!";
@@ -48,14 +55,33 @@ public class QdrantService {
 
     // Extract resolution from Qdrant response
     private String extractResolution(String response) {
-        if (response.contains("\"payload\":")) {
-            int startIndex = response.indexOf("\"resolution\":") + 13;
-            int endIndex = response.indexOf("\"", startIndex);
-            return response.substring(startIndex, endIndex);
+        JSONObject jsonResponse = new JSONObject(response);
+
+        // Check if the result array exists
+        if (jsonResponse.has("result")) {
+            JSONArray results = jsonResponse.getJSONArray("result");
+
+            // Ensure at least one result exists
+            if (!results.isEmpty()) {
+                JSONObject bestMatch = results.getJSONObject(0); // Pick the top match
+
+                // Extract the score
+                double score = bestMatch.getDouble("score");
+
+                // Extract the solution from the payload
+                if (bestMatch.has("payload")) {
+                    JSONObject payload = bestMatch.getJSONObject("payload");
+                    if (payload.has("solution")) {
+                        String solution = payload.getString("solution");
+                        return "Solution: " + solution + " (Score: " + score + ")";
+                    }
+                }
+            }
         }
+
         return null;
     }
-    public void storeIssue(String issue, String solution, float[] embedding) {
+    public Boolean storeIssue(String issue, String solution, float[] embedding) {
         RestTemplate restTemplate = new RestTemplate();
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -73,8 +99,18 @@ public class QdrantService {
         );
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
-        restTemplate.exchange(QDRANT_URL + "/collections/issues/points", HttpMethod.PUT, entity, String.class);
+        ResponseEntity<String> response = restTemplate.exchange(QDRANT_URL + "/collections/issues/points", HttpMethod.PUT, entity, String.class);
+
+        // Validate the response
+        if (response.getStatusCode() == HttpStatus.OK) {
+            return true;
+        } else {
+            return false;
+        }
+
+
     }
+
 
 
 }
