@@ -25,22 +25,32 @@ public class QdrantService {
     private AIService aiService;
 
     // Search for an issue in Qdrant
-    public String searchResolution(float[] queryEmbedding) {
+    public String searchResolution(float[] queryEmbedding,String model) {
         try {
             HttpClient client = HttpClient.newHttpClient();
             String jsonBody = String.format("""
             {
                 "vector": %s,
-                "limit": 5,
+                "limit": 18,
                  "with_payload": true
             }
             """, java.util.Arrays.toString(queryEmbedding));
+            HttpRequest request;
+            if(model.equals("mistral")){
+                 request = HttpRequest.newBuilder()
+                        .uri(URI.create(QDRANT_URL + "/collections/issues/points/search"))
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                        .build();
+            }
+            else{
+                 request = HttpRequest.newBuilder()
+                        .uri(URI.create(QDRANT_URL + "/collections/issues_llama/points/search"))
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                        .build();
+            }
 
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(QDRANT_URL + "/collections/issues/points/search"))
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
-                    .build();
 
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
             System.out.printf("Qdrant response: %s%n", response.body());
@@ -81,14 +91,20 @@ public class QdrantService {
 
         return null;
     }
-    public Boolean storeIssue(String issue, String solution, float[] embedding) {
+    public Boolean storeIssue(String issue, String solution, float[] embedding,String model) {
         RestTemplate restTemplate = new RestTemplate();
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-
+        String tableName;
+        if(model.equals("mistral")){
+             tableName="issues";
+        }
+        else{
+             tableName="issues_llama";
+        }
         // Create JSON request
         Map<String, Object> payload = Map.of(
-                "collection_name", "issues",
+                "collection_name", tableName,
                 "points", List.of(
                         Map.of(
                                 "id", UUID.randomUUID().toString(),
@@ -99,7 +115,7 @@ public class QdrantService {
         );
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
-        ResponseEntity<String> response = restTemplate.exchange(QDRANT_URL + "/collections/issues/points", HttpMethod.PUT, entity, String.class);
+        ResponseEntity<String> response = restTemplate.exchange(QDRANT_URL + "/collections/"+tableName+"/points", HttpMethod.PUT, entity, String.class);
 
         // Validate the response
         if (response.getStatusCode() == HttpStatus.OK) {

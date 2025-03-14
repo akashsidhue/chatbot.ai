@@ -14,18 +14,18 @@ public class AIService {
 
 
     // Generate a resolution using local LLM
-    public String generateResolution(String issue) {
+    public String generateResolution(String issue,String model) {
         RestTemplate restTemplate = new RestTemplate();
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         String requestBody = """
         {
-            "model": "mistral",
+            "model": " %s",
             "prompt": "Provide a resolution for the following issue: %s",
             "stream": false
         }
-        """.formatted(issue);
+        """.formatted(model,issue);
 
         HttpEntity<String> entity = new HttpEntity<>(requestBody, headers);
         ResponseEntity<Map> response = restTemplate.exchange(OLLAMA_API_URL, HttpMethod.POST, entity, Map.class);
@@ -35,13 +35,13 @@ public class AIService {
         }
         return "Error generating resolution.";
     }
-    public float[] getEmbedding(String text) {
+    public float[] getEmbedding(String text,String model) {
         RestTemplate restTemplate = new RestTemplate();
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         // Send text to Ollama to generate an embedding
-        Map<String, String> request = Map.of("model", "mistral", "prompt", text);
+        Map<String, String> request = Map.of("model", model, "prompt", text);
         HttpEntity<Map<String, String>> entity = new HttpEntity<>(request, headers);
 
         ResponseEntity<Map> response = restTemplate.postForEntity(OLLAMA_EMBEDDING_URL, entity, Map.class);
