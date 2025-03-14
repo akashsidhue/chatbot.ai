@@ -20,6 +20,13 @@ This guide outlines the steps to set up an AI chatbot locally using Qdrant for v
    ```
    qdrant.exe
    ```
+4. Alternatively, run Qdrant using Docker:
+   ```
+   docker run -d --name qdrant \
+   -p 6333:6333 \
+   -v qdrant_storage:/qdrant/storage \
+   qdrant/qdrant
+   ```
 
 ---
 
