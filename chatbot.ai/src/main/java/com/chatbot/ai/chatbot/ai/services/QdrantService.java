@@ -1,5 +1,6 @@
 package com.chatbot.ai.chatbot.ai.services;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.log4j.Log4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -125,6 +126,64 @@ public class QdrantService {
         }
 
 
+    }
+    public Boolean storeIssueSentenceTransformer(String issue, String solution, List<Float> embedding) {
+        RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        String tableName="issues_sentece_transformer";
+        // Create JSON request
+        Map<String, Object> payload = Map.of(
+                "collection_name", tableName,
+                "points", List.of(
+                        Map.of(
+                                "id", UUID.randomUUID().toString(),
+                                "vector", embedding,
+                                "payload", Map.of("issue", issue, "solution", solution)
+                        )
+                )
+        );
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
+        ResponseEntity<String> response = restTemplate.exchange(QDRANT_URL + "/collections/"+tableName+"/points", HttpMethod.PUT, entity, String.class);
+
+        // Validate the response
+        if (response.getStatusCode() == HttpStatus.OK) {
+            return true;
+        } else {
+            return false;
+        }
+
+
+    }
+    public String searchResolutionSentenceTransformer(List<Float> queryEmbedding) {
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+            ObjectMapper objectMapper = new ObjectMapper();
+            String vectorJson = objectMapper.writeValueAsString(queryEmbedding);
+
+            String jsonBody = String.format("""
+        {
+            "vector": %s,
+            "limit": 18,
+            "with_payload": true
+        }
+        """, vectorJson);
+            HttpRequest request= HttpRequest.newBuilder()
+                        .uri(URI.create(QDRANT_URL + "/collections/issues_sentece_transformer/points/search"))
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                        .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            System.out.printf("Qdrant response: %s%n", response.body());
+            String solution = extractResolution(response.body());
+            System.out.printf("Resolution: %s%n", solution);
+            return solution;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "Error searching issue!";
+        }
     }
 
 
